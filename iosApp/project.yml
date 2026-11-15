@@ -1,0 +1,57 @@
+name: Plume
+
+options:
+  bundleIdPrefix: com.example.plume
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    # The Gradle build phase reads sources outside the Xcode project (shared/).
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  Plume:
+    type: application
+    platform: iOS
+    sources:
+      - path: Plume
+        excludes:
+          - Info.plist
+    settings:
+      base:
+        PRODUCT_NAME: Plume
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.plume
+        INFOPLIST_FILE: Plume/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        # The Kotlin Gradle plugin drops the generated framework here.
+        FRAMEWORK_SEARCH_PATHS:
+          - $(inherited)
+          - $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        OTHER_LDFLAGS:
+          - $(inherited)
+          - -framework
+          - Shared
+        LD_RUNPATH_SEARCH_PATHS:
+          - $(inherited)
+          - "@executable_path/Frameworks"
+    preBuildScripts:
+      - name: Build shared Kotlin framework
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+
+schemes:
+  Plume:
+    build:
+      targets:
+        Plume: all
+    run:
+      config: Debug
+    archive:
+      config: Release
