@@ -114,6 +114,14 @@ final class Downloads: NSObject, ObservableObject, AVAssetDownloadDelegate {
         }
     }
 
+    nonisolated func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
+        Task { @MainActor in
+            let completion = BackgroundSession.completion
+            BackgroundSession.completion = nil
+            completion?()
+        }
+    }
+
     func importAudio(_ url: URL) async throws {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }

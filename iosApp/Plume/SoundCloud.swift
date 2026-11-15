@@ -57,7 +57,7 @@ actor SoundCloudClient {
     }
 
     private func api<T: Decodable>(_ endpoint: String, query: [URLQueryItem] = []) async throws -> T {
-        guard var components = URLComponents(string: endpoint) else { throw URLError(.badURL) }
+        guard let components = URLComponents(string: endpoint) else { throw URLError(.badURL) }
         // Only send the public client ID to SoundCloud API hosts.
         guard let host = components.host, ["api-v2.soundcloud.com", "api.soundcloud.com"].contains(host) else {
             throw URLError(.unsupportedURL)

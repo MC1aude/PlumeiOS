@@ -166,7 +166,7 @@ struct PlumeShell: View {
                 }
                 Text(t("Знайди свій ритм", "Найди свой ритм", "Find your rhythm"))
                     .font(.system(size: 34, weight: .bold))
-                if loadingHome && model.home.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(40) }
+                if model.loadingHome && model.home.isEmpty { ProgressView().frame(maxWidth: .infinity).padding(40) }
                 if let error = model.homeError {
                     Text(error).font(.subheadline).opacity(0.7)
                     Button(t("Спробувати знову", "Повторить", "Try again")) { Task { await model.loadHome() } }
@@ -199,7 +199,7 @@ struct PlumeShell: View {
                 Image(systemName: "magnifyingglass").opacity(0.6)
                 TextField(t("Трек або виконавець", "Трек или исполнитель", "Track or artist"), text: $model.query)
                     .autocorrectionDisabled().submitLabel(.search)
-                    .onChange(of: model.query) { _ in model.search() }
+                    .onChange(of: model.query) { model.search() }
                 if !model.query.isEmpty {
                     Button { model.query = "" } label: { Image(systemName: "xmark.circle.fill") }
                 }
