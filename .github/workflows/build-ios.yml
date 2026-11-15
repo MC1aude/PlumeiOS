@@ -2,9 +2,12 @@ name: Build iOS
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master, "codex/**"]
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -12,101 +15,52 @@ concurrency:
 
 jobs:
   build-ios:
-    runs-on: macos-latest
-    timeout-minutes: 60
-
-    env:
-      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
-
+    runs-on: macos-15
+    timeout-minutes: 40
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Cache Kotlin/Native toolchain
-        uses: actions/cache@v4
-        with:
-          path: ~/.konan
-          key: ${{ runner.os }}-konan-${{ hashFiles('gradle/libs.versions.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-konan-
-
+      - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
-
-      - name: Show toolchain versions
-        run: |
-          xcodebuild -version
-          java -version
-          xcodegen --version
-
-      - name: Generate Xcode project
+      - name: Generate project
         working-directory: iosApp
         run: xcodegen generate
-
-      # Build the Kotlin/Native framework directly. This task does NOT require
-      # Xcode environment variables (unlike embedAndSignAppleFrameworkForXcode).
-      - name: Build shared Kotlin framework (iOS device, Release)
-        run: ./gradlew :shared:linkReleaseFrameworkIosArm64 --console=plain
-
-      - name: Verify Kotlin framework
+      - name: Test on iPhone simulator
         run: |
-          FRAMEWORK="shared/build/bin/iosArm64/releaseFramework/Shared.framework"
-          if [ ! -d "$FRAMEWORK" ]; then
-            echo "Shared.framework was not produced at $FRAMEWORK" >&2
-            exit 1
-          fi
-          echo "Found $FRAMEWORK"
-
-      - name: Build unsigned release archive
-        env:
-          # Tells the Xcode pre-build script phase to skip the Xcode-only embed task.
-          PLUME_PREBUILT_KOTLIN_FRAMEWORK: "1"
+          set -euo pipefail
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          test "$SIMULATOR_ID" != "null"
+          xcodebuild test -project iosApp/Plume.xcodeproj -scheme Plume \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -resultBundlePath "$RUNNER_TEMP/Plume-tests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Archive for iPhone
         run: |
-          xcodebuild \
-            -project iosApp/Plume.xcodeproj \
-            -scheme Plume \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
+          set -euo pipefail
+          xcodebuild archive -project iosApp/Plume.xcodeproj -scheme Plume \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Plume.xcarchive" \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            FRAMEWORK_SEARCH_PATHS='$(inherited) '"$PWD/shared/build/bin/iosArm64/releaseFramework" \
-            PLUME_PREBUILT_KOTLIN_FRAMEWORK=1 \
-            archive
-
-      - name: Package unsigned IPA
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM=""
+      - name: Package IPA for Sideloadly
         run: |
-          APP_PATH=$(find "$RUNNER_TEMP/Plume.xcarchive/Products/Applications" \
-            -maxdepth 1 -name "*.app" | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "No .app found in archive" >&2
-            exit 1
-          fi
-
+          set -euo pipefail
+          APP="$RUNNER_TEMP/Plume.xcarchive/Products/Applications/Plume.app"
+          test -d "$APP"
           mkdir -p "$RUNNER_TEMP/ipa/Payload"
-          cp -R "$APP_PATH" "$RUNNER_TEMP/ipa/Payload/"
+          ditto "$APP" "$RUNNER_TEMP/ipa/Payload/Plume.app"
           cd "$RUNNER_TEMP/ipa"
-          zip -r "$RUNNER_TEMP/Plume-unsigned.ipa" Payload
-
-      - name: Upload IPA artifact
+          zip -qry "$RUNNER_TEMP/Plume-unsigned.ipa" Payload
+          unzip -t "$RUNNER_TEMP/Plume-unsigned.ipa"
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
           name: Plume-unsigned-ipa
           path: ${{ runner.temp }}/Plume-unsigned.ipa
           if-no-files-found: error
+          retention-days: 14
+      - name: Upload test report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Plume-iPhone-tests
+          path: ${{ runner.temp }}/Plume-tests.xcresult
           retention-days: 14
