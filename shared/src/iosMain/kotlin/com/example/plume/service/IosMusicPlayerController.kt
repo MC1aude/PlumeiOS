@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.*
 
 /**
  * iOS implementation stub of [MusicPlayerController].
