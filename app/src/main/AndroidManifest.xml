@@ -7,6 +7,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Required by ExoPlayer.setWakeMode(): keeps the CPU alive while playing in background. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Only needed to write the public Downloads folder on Android 9 and lower. -->
     <uses-permission

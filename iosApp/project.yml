@@ -28,14 +28,28 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.example.plume
         INFOPLIST_FILE: Plume/Info.plist
         TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         # The Kotlin Gradle plugin drops the generated framework here.
         FRAMEWORK_SEARCH_PATHS:
           - $(inherited)
           - $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
+        # `Shared` is a *static* Kotlin/Native framework: it does not record the
+        # system frameworks used from iosMain. They must be linked by the app,
+        # otherwise the build fails with "Undefined symbols: _OBJC_CLASS_$_AVPlayer"
+        # (and AVAudioSession / CMTime symbols) when `IosMusicPlayerController`
+        # is pulled in from the archive.
         OTHER_LDFLAGS:
           - $(inherited)
           - -framework
           - Shared
+          - -framework
+          - AVFoundation
+          - -framework
+          - AVFAudio
+          - -framework
+          - AudioToolbox
+          - -framework
+          - CoreMedia
         LD_RUNPATH_SEARCH_PATHS:
           - $(inherited)
           - "@executable_path/Frameworks"
@@ -43,6 +57,8 @@ targets:
       - name: Build shared Kotlin framework
         basedOnDependencyAnalysis: false
         script: |
+          set -euo pipefail
+
           # In CI the framework is built ahead of time with
           # `:shared:linkReleaseFrameworkIosArm64`; the Xcode-only
           # `embedAndSignAppleFrameworkForXcode` task must not run there.
@@ -50,8 +66,23 @@ targets:
             echo "Using prebuilt Kotlin framework — skipping embedAndSignAppleFrameworkForXcode"
             exit 0
           fi
+
           cd "$SRCROOT/.."
-          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+
+          # Xcode does not run the login shell, so JAVA_HOME may be unset even
+          # though a JDK is installed. Fall back to java_home before Gradle
+          # reports a cryptic "Unable to locate a Java Runtime".
+          if [ -z "${JAVA_HOME:-}" ] && [ -x /usr/libexec/java_home ]; then
+            export JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || /usr/libexec/java_home)"
+          fi
+
+          # `gradlew` is checked in on Windows and may lose its executable bit on
+          # a fresh clone. Running it through `sh` works in both cases.
+          if [ -x ./gradlew ]; then
+            ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+          else
+            sh ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+          fi
 
 schemes:
   Plume:

@@ -58,6 +58,8 @@ kotlin {
             implementation(libs.androidx.core.ktx)
             implementation(libs.androidx.media3.exoplayer)
             implementation(libs.androidx.media3.common)
+            // MediaController / SessionToken for talking to PlumeMediaService.
+            implementation(libs.androidx.media3.session)
         }
     }
 }

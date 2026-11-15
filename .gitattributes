@@ -1,0 +1,8 @@
+# Normalize line endings across the repo.
+* text=auto
+
+# Gradle wrapper must stay executable on macOS/CI: the Xcode pre-build phase
+# invokes it to build the Kotlin/Native framework.
+gradlew text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf
