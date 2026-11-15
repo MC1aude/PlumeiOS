@@ -55,7 +55,24 @@ jobs:
         working-directory: iosApp
         run: xcodegen generate
 
+      # Build the Kotlin/Native framework directly. This task does NOT require
+      # Xcode environment variables (unlike embedAndSignAppleFrameworkForXcode).
+      - name: Build shared Kotlin framework (iOS device, Release)
+        run: ./gradlew :shared:linkReleaseFrameworkIosArm64 --console=plain
+
+      - name: Verify Kotlin framework
+        run: |
+          FRAMEWORK="shared/build/bin/iosArm64/releaseFramework/Shared.framework"
+          if [ ! -d "$FRAMEWORK" ]; then
+            echo "Shared.framework was not produced at $FRAMEWORK" >&2
+            exit 1
+          fi
+          echo "Found $FRAMEWORK"
+
       - name: Build unsigned release archive
+        env:
+          # Tells the Xcode pre-build script phase to skip the Xcode-only embed task.
+          PLUME_PREBUILT_KOTLIN_FRAMEWORK: "1"
         run: |
           xcodebuild \
             -project iosApp/Plume.xcodeproj \
@@ -68,6 +85,8 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
+            FRAMEWORK_SEARCH_PATHS='$(inherited) '"$PWD/shared/build/bin/iosArm64/releaseFramework" \
+            PLUME_PREBUILT_KOTLIN_FRAMEWORK=1 \
             archive
 
       - name: Package unsigned IPA
