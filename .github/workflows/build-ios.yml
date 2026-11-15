@@ -1,22 +1,19 @@
 name: Build iOS
-
 on:
   push:
     branches: [main, master]
   pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   build-ios:
+    name: Build IPA for Sideloadly
     runs-on: macos-15
-    timeout-minutes: 40
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
@@ -24,15 +21,6 @@ jobs:
       - name: Generate project
         working-directory: iosApp
         run: xcodegen generate
-      - name: Test on iPhone simulator
-        run: |
-          set -euo pipefail
-          SIMULATOR_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
-          test "$SIMULATOR_ID" != "null"
-          xcodebuild test -project iosApp/Plume.xcodeproj -scheme Plume \
-            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -resultBundlePath "$RUNNER_TEMP/Plume-tests.xcresult" \
-            CODE_SIGNING_ALLOWED=NO
       - name: Archive for iPhone
         run: |
           set -euo pipefail
@@ -57,6 +45,29 @@ jobs:
           path: ${{ runner.temp }}/Plume-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
+  test-ios:
+    name: Test on iPhone simulator
+    runs-on: macos-15
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        working-directory: iosApp
+        run: xcodegen generate
+      - name: Run library and UI tests
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          test "$SIMULATOR_ID" != "null"
+          xcrun simctl boot "$SIMULATOR_ID" || true
+          xcrun simctl bootstatus "$SIMULATOR_ID" -b
+          xcodebuild test -project iosApp/Plume.xcodeproj -scheme Plume \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -parallel-testing-enabled NO \
+            -resultBundlePath "$RUNNER_TEMP/Plume-tests.xcresult" CODE_SIGNING_ALLOWED=NO
       - name: Verify live SoundCloud audio
         continue-on-error: true
         timeout-minutes: 3
@@ -65,16 +76,25 @@ jobs:
           SIMULATOR_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
           TEST_RUNNER_PLUME_LIVE_TESTS=1 xcodebuild test -project iosApp/Plume.xcodeproj -scheme Plume \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -only-testing:PlumeTests/CloudLiveTests \
+            -parallel-testing-enabled NO -only-testing:PlumeTests/CloudLiveTests \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 45 \
             -maximum-test-execution-time-allowance 60 \
             -resultBundlePath "$RUNNER_TEMP/Plume-live.xcresult" CODE_SIGNING_ALLOWED=NO
-      - name: Upload test report and screenshots
+      - name: Export test results for Windows
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/test-report"
+          if [ -d "$RUNNER_TEMP/Plume-tests.xcresult" ]; then
+            xcrun xcresulttool export attachments --path "$RUNNER_TEMP/Plume-tests.xcresult" --output-path "$RUNNER_TEMP/test-report/screenshots" || true
+            xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/Plume-tests.xcresult" > "$RUNNER_TEMP/test-report/summary.json" || true
+          fi
+      - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Plume-iPhone-tests
           path: |
+            ${{ runner.temp }}/test-report
             ${{ runner.temp }}/Plume-tests.xcresult
             ${{ runner.temp }}/Plume-live.xcresult
           retention-days: 14
