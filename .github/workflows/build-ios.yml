@@ -2,7 +2,7 @@ name: Build iOS
 
 on:
   push:
-    branches: [main, master, "codex/**"]
+    branches: [main, master]
   pull_request:
   workflow_dispatch:
 
@@ -33,6 +33,15 @@ jobs:
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -resultBundlePath "$RUNNER_TEMP/Plume-tests.xcresult" \
             CODE_SIGNING_ALLOWED=NO
+      - name: Verify live SoundCloud audio
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          SIMULATOR_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          TEST_RUNNER_PLUME_LIVE_TESTS=1 xcodebuild test -project iosApp/Plume.xcodeproj -scheme Plume \
+            -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -only-testing:PlumeTests/CloudLiveTests \
+            -resultBundlePath "$RUNNER_TEMP/Plume-live.xcresult" CODE_SIGNING_ALLOWED=NO
       - name: Archive for iPhone
         run: |
           set -euo pipefail
@@ -62,5 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Plume-iPhone-tests
-          path: ${{ runner.temp }}/Plume-tests.xcresult
+          path: |
+            ${{ runner.temp }}/Plume-tests.xcresult
+            ${{ runner.temp }}/Plume-live.xcresult
           retention-days: 14

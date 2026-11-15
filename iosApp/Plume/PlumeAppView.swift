@@ -73,6 +73,7 @@ struct PlumeShell: View {
     @State private var playlistName = ""
     @State private var selectedPlaylist: UUID?
     @State private var addTrack: MusicTrack?
+    @State private var pendingNewPlaylistTrack: MusicTrack?
     @State private var shareURL: URL?
     @State private var deleteTrack: MusicTrack?
     @State private var deletePlaylist: MusicPlaylist?
@@ -119,7 +120,13 @@ struct PlumeShell: View {
         .alert(t("Новий плейлист", "Новый плейлист", "New playlist"), isPresented: $showCreate) {
             TextField(t("Назва", "Название", "Name"), text: $playlistName)
             Button(t("Створити", "Создать", "Create")) {
-                model.attempt { try library.createPlaylist(playlistName) }
+                model.attempt {
+                    try library.createPlaylist(playlistName)
+                    if let track = pendingNewPlaylistTrack, let playlist = library.snapshot.playlists.last {
+                        try library.add(track, to: playlist.id)
+                    }
+                }
+                pendingNewPlaylistTrack = nil
                 playlistName = ""
             }
             Button(t("Скасувати", "Отмена", "Cancel"), role: .cancel) {}
@@ -372,12 +379,12 @@ struct PlumeShell: View {
                   : t("Зберегти", "Сохранить", "Save"), systemImage: track.favorite ? "heart.slash" : "heart")
         }
         if track.downloaded {
-            Button(role: .destructive) { deleteTrack = track } label: {
+            Button(role: .destructive) { present { deleteTrack = track } } label: {
                 Label(t("Видалити завантаження", "Удалить загрузку", "Remove download"), systemImage: "trash")
             }
             if !track.imported || library.localURL(track) != nil {
                 if let url = library.localURL(track), url.pathExtension != "movpkg" {
-                    Button { shareURL = url } label: {
+                    Button { present { shareURL = url } } label: {
                         Label(t("Поділитися файлом", "Поделиться файлом", "Share file"), systemImage: "square.and.arrow.up")
                     }
                 }
@@ -387,7 +394,7 @@ struct PlumeShell: View {
                 Label(t("Завантажити", "Скачать", "Download"), systemImage: "arrow.down.circle")
             }.disabled(downloads.active.contains(track.id))
         }
-        Button { addTrack = track } label: {
+        Button { present { addTrack = track } } label: {
             Label(t("До плейлиста", "В плейлист", "Add to playlist"), systemImage: "text.badge.plus")
         }
     }
@@ -504,12 +511,20 @@ struct PlumeShell: View {
                 } label: { Label(playlist.name, systemImage: "music.note.list").padding(.vertical, 10) }
             }
             Button {
+                pendingNewPlaylistTrack = track
                 addTrack = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { showCreate = true }
             } label: { Label(t("Новий плейлист", "Новый плейлист", "New playlist"), systemImage: "plus") }
             Spacer()
         }.padding(24).foregroundColor(ink).background(paper.ignoresSafeArea())
     }
+    private func present(_ action: @escaping () -> Void) {
+        if showPlayer {
+            showPlayer = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: action)
+        } else { action() }
+    }
+
     private func time(_ seconds: Double) -> String {
         let value = seconds.isFinite ? Int(max(0, seconds)) : 0
         return String(format: "%d:%02d", value / 60, value % 60)
