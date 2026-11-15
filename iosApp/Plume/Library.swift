@@ -31,6 +31,24 @@ enum PlumeError: LocalizedError {
     }
 }
 
+/// Apple may return /private/var/... while NSHomeDirectory uses /var/....
+enum OfflineAssetLocation {
+    static func storedPath(for location: URL,
+                           home: URL = URL(fileURLWithPath: NSHomeDirectory())) throws -> String {
+        guard location.isFileURL, home.isFileURL else {
+            throw PlumeError.message("Invalid download location.")
+        }
+        let root = home.standardizedFileURL.resolvingSymlinksInPath().pathComponents
+        let asset = location.standardizedFileURL.resolvingSymlinksInPath().pathComponents
+        guard asset.count > root.count, Array(asset.prefix(root.count)) == root else {
+            throw PlumeError.message("Invalid download location.")
+        }
+        // Keep the sandbox-relative representation so reinstalls/updates that move
+        // the app container do not leave an absolute path in the library.
+        return "home:" + asset.dropFirst(root.count).joined(separator: "/")
+    }
+}
+
 @MainActor
 final class MusicLibrary: ObservableObject {
     @Published private(set) var snapshot: LibrarySnapshot

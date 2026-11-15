@@ -104,9 +104,8 @@ final class Downloads: NSObject, ObservableObject, AVAssetDownloadDelegate {
             do {
                 if let error { throw error }
                 guard let location else { throw PlumeError.message("The download did not produce an offline file.") }
-                let home = NSHomeDirectory() + "/"
-                guard location.path.hasPrefix(home) else { throw PlumeError.message("Invalid download location.") }
-                try self.library.setDownload(track, file: "home:" + String(location.path.dropFirst(home.count)))
+                let path = try OfflineAssetLocation.storedPath(for: location)
+                try self.library.setDownload(track, file: path)
             } catch {
                 if let location { try? FileManager.default.removeItem(at: location) }
                 self.error = error.localizedDescription

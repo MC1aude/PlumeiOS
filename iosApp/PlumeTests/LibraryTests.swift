@@ -29,6 +29,39 @@ final class LibraryTests: XCTestCase {
         XCTAssertFalse(restored.track(stale).downloaded)
     }
 
+    @MainActor
+    func testOfflineAssetAcceptsSymlinkAliasAndCanBeReopenedAfterReload() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let home = folder.appendingPathComponent("Sandbox", isDirectory: true)
+        let alias = folder.appendingPathComponent("Alias", isDirectory: true)
+        let relative = "Library/Offline Music/track.movpkg"
+        let asset = home.appendingPathComponent(relative, isDirectory: true)
+        try FileManager.default.createDirectory(at: asset, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: home)
+
+        let stored = try OfflineAssetLocation.storedPath(for: alias.appendingPathComponent(relative), home: home)
+        XCTAssertEqual(stored, "home:" + relative)
+        XCTAssertEqual(try OfflineAssetLocation.storedPath(for: asset, home: alias), stored)
+        let reopened = home.appendingPathComponent(String(stored.dropFirst(5)))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: reopened.path))
+
+        let libraryFile = folder.appendingPathComponent("library.json")
+        let track = MusicTrack(id: "offline", title: "Offline", artist: "Artist")
+        let store = MusicLibrary(file: libraryFile)
+        try store.setDownload(track, file: stored)
+        XCTAssertEqual(MusicLibrary(file: libraryFile).track(track).localFile, stored)
+    }
+
+    func testOfflineAssetRejectsOutsideAndSiblingContainers() throws {
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        XCTAssertThrowsError(try OfflineAssetLocation.storedPath(for: home, home: home))
+        XCTAssertThrowsError(try OfflineAssetLocation.storedPath(
+            for: URL(fileURLWithPath: home.path + "-neighbor/track.movpkg"), home: home))
+        XCTAssertThrowsError(try OfflineAssetLocation.storedPath(
+            for: URL(string: "https://example.com/track.movpkg")!, home: home))
+    }
+
     func testTranscodingMappingRejectsOggForIPhone() throws {
         let json = """
         {"id":42,"title":"Music","streamable":true,"media":{"transcodings":[
