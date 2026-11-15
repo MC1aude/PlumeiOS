@@ -1,19 +1,16 @@
 name: Plume
-
 options:
   bundleIdPrefix: com.example.plume
   deploymentTarget:
-    iOS: "15.0"
+    iOS: "18.0"
   createIntermediateGroups: true
-
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
-    # The Gradle build phase reads sources outside the Xcode project (shared/).
-    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
     CODE_SIGN_STYLE: Automatic
-
+    MARKETING_VERSION: "1.1"
+    CURRENT_PROJECT_VERSION: "3"
 targets:
   Plume:
     type: application
@@ -22,73 +19,44 @@ targets:
       - path: Plume
         excludes:
           - Info.plist
+          - ComposeView.swift
     settings:
       base:
         PRODUCT_NAME: Plume
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         PRODUCT_BUNDLE_IDENTIFIER: com.example.plume
         INFOPLIST_FILE: Plume/Info.plist
         TARGETED_DEVICE_FAMILY: "1"
         SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
-        # The Kotlin Gradle plugin drops the generated framework here.
-        FRAMEWORK_SEARCH_PATHS:
-          - $(inherited)
-          - $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
-        # `Shared` is a *static* Kotlin/Native framework: it does not record the
-        # system frameworks used from iosMain. They must be linked by the app,
-        # otherwise the build fails with "Undefined symbols: _OBJC_CLASS_$_AVPlayer"
-        # (and AVAudioSession / CMTime symbols) when `IosMusicPlayerController`
-        # is pulled in from the archive.
-        OTHER_LDFLAGS:
-          - $(inherited)
-          - -framework
-          - Shared
-          - -framework
-          - AVFoundation
-          - -framework
-          - AVFAudio
-          - -framework
-          - AudioToolbox
-          - -framework
-          - CoreMedia
-        LD_RUNPATH_SEARCH_PATHS:
-          - $(inherited)
-          - "@executable_path/Frameworks"
-    preBuildScripts:
-      - name: Build shared Kotlin framework
-        basedOnDependencyAnalysis: false
-        script: |
-          set -euo pipefail
-
-          # In CI the framework is built ahead of time with
-          # `:shared:linkReleaseFrameworkIosArm64`; the Xcode-only
-          # `embedAndSignAppleFrameworkForXcode` task must not run there.
-          if [ "${PLUME_PREBUILT_KOTLIN_FRAMEWORK:-0}" = "1" ]; then
-            echo "Using prebuilt Kotlin framework — skipping embedAndSignAppleFrameworkForXcode"
-            exit 0
-          fi
-
-          cd "$SRCROOT/.."
-
-          # Xcode does not run the login shell, so JAVA_HOME may be unset even
-          # though a JDK is installed. Fall back to java_home before Gradle
-          # reports a cryptic "Unable to locate a Java Runtime".
-          if [ -z "${JAVA_HOME:-}" ] && [ -x /usr/libexec/java_home ]; then
-            export JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || /usr/libexec/java_home)"
-          fi
-
-          # `gradlew` is checked in on Windows and may lose its executable bit on
-          # a fresh clone. Running it through `sh` works in both cases.
-          if [ -x ./gradlew ]; then
-            ./gradlew :shared:embedAndSignAppleFrameworkForXcode
-          else
-            sh ./gradlew :shared:embedAndSignAppleFrameworkForXcode
-          fi
-
+  PlumeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: PlumeTests
+    dependencies:
+      - target: Plume
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+  PlumeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: PlumeUITests
+    dependencies:
+      - target: Plume
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   Plume:
     build:
       targets:
         Plume: all
+    test:
+      targets:
+        - PlumeTests
+        - PlumeUITests
     run:
       config: Debug
     archive:

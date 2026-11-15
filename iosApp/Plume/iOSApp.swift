@@ -2,11 +2,10 @@ import SwiftUI
 
 @main
 struct iOSApp: App {
+    @UIApplicationDelegateAdaptor(BackgroundSession.self) private var appDelegate
     var body: some Scene {
         WindowGroup {
-            ComposeView()
-                // Compose Multiplatform handles the keyboard insets itself.
-                .ignoresSafeArea(.keyboard)
+            PlumeAppView()
         }
     }
 }
