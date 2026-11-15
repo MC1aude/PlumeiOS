@@ -15,7 +15,7 @@ import platform.AVFoundation.AVPlayer
  *
  * Playback state management is already shared; actual `AVPlayerItem`/`AVURLAsset`
  * wiring will be added together with the iOS app target. The only platform call
- * used here is `AVPlayer.play()/pause()` so the module links against AVFoundation.
+ * used here is `AVPlayer.rate` / `pause()` so the module links against AVFoundation.
  */
 class IosMusicPlayerController : MusicPlayerController {
 
@@ -36,7 +36,7 @@ class IosMusicPlayerController : MusicPlayerController {
                 isLoading = true
             )
         }
-        avPlayer.play()
+        avPlayer.rate = 1.0f
     }
 
     override fun setQueueAndPlay(queue: List<Track>, startIndex: Int) {
@@ -51,7 +51,7 @@ class IosMusicPlayerController : MusicPlayerController {
                 isLoading = true
             )
         }
-        avPlayer.play()
+        avPlayer.rate = 1.0f
     }
 
     override fun togglePlayPause() {
@@ -59,7 +59,7 @@ class IosMusicPlayerController : MusicPlayerController {
             pause()
         } else {
             _playbackState.update { it.copy(isPlaying = true) }
-            avPlayer.play()
+            avPlayer.rate = 1.0f
         }
     }
 
@@ -93,7 +93,7 @@ class IosMusicPlayerController : MusicPlayerController {
         _playbackState.update {
             it.copy(currentIndex = index, currentTrack = track, positionMs = 0L)
         }
-        avPlayer.play()
+        avPlayer.rate = 1.0f
     }
 
     override fun previous() {
@@ -106,7 +106,7 @@ class IosMusicPlayerController : MusicPlayerController {
         _playbackState.update {
             it.copy(currentIndex = index, currentTrack = state.queue[index], positionMs = 0L)
         }
-        avPlayer.play()
+        avPlayer.rate = 1.0f
     }
 
     override fun seekTo(positionMs: Long) {
