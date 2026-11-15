@@ -52,5 +52,14 @@ currently share their implementation.
 
 ## Local macOS development (optional)
 
-Install Xcode and XcodeGen, run `xcodegen generate` inside `iosApp`, then open
-`Plume.xcodeproj`. Generated projects are not the source of truth; edit `project.yml`.
+Install Xcode and XcodeGen. From the repository root, prepare the supplied app icon:
+
+```sh
+swift iosApp/Tools/PrepareIcon.swift iosApp/Branding/AppIcon.png.base64 iosApp/Plume/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+```
+
+Then run `xcodegen generate` inside `iosApp` and open `Plume.xcodeproj`.
+Generated projects are not the source of truth; edit `project.yml`.
+The original supplied PNG is stored losslessly in `Branding/AppIcon.png.base64`;
+the preparation step creates an opaque 1024 x 1024 PNG for the app icon catalog.
+GitHub Actions performs this step automatically.

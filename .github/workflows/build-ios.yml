@@ -18,6 +18,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
+      - name: Prepare supplied app icon
+        run: swift iosApp/Tools/PrepareIcon.swift iosApp/Branding/AppIcon.png.base64 iosApp/Plume/Assets.xcassets/AppIcon.appiconset/AppIcon.png
       - name: Generate project
         working-directory: iosApp
         run: xcodegen generate
@@ -53,6 +55,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install XcodeGen
         run: brew install xcodegen
+      - name: Prepare supplied app icon
+        run: swift iosApp/Tools/PrepareIcon.swift iosApp/Branding/AppIcon.png.base64 iosApp/Plume/Assets.xcassets/AppIcon.appiconset/AppIcon.png
       - name: Generate project
         working-directory: iosApp
         run: xcodegen generate
